@@ -1,0 +1,290 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "@/components/ui/sonner";
+import ProfilePictureUpload from '@/components/ProfilePictureUpload';
+import NameInput from '@/components/NameInput';
+import FormSubmissionStatus from '@/components/FormSubmissionStatus';
+import { useErrorTimeout } from '@/hooks/useErrorTimeout';
+import { validateName, toTitleCase } from '@/utils/nameUtils';
+import { getStudent, updateStudent } from '@/lib/studentData';
+
+interface StudentData {
+  nationalId: string;
+  arabicName: string;
+  examSeatNumber: string;
+  studentCode: string;
+  englishFirstName?: string;
+  englishSecondName?: string;
+  englishThirdName?: string;
+  profilePicture?: string | null;
+}
+
+const StudentProfile = () => {
+  const [student, setStudent] = useState<StudentData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [profilePicture, setProfilePicture] = useState<File | null>(null);
+  const [profilePictureError, setProfilePictureError] = useErrorTimeout('', 5000);
+  const [formSubmitted, setFormSubmitted] = useState(false);
+  const navigate = useNavigate();
+
+  const [englishFirstName, setEnglishFirstName] = useState('');
+  const [englishSecondName, setEnglishSecondName] = useState('');
+  const [englishThirdName, setEnglishThirdName] = useState('');
+
+  const [firstNameError, setFirstNameError] = useErrorTimeout('', 5000);
+  const [secondNameError, setSecondNameError] = useErrorTimeout('', 5000);
+  const [thirdNameError, setThirdNameError] = useErrorTimeout('', 5000);
+
+  useEffect(() => {
+    const storedStudent = localStorage.getItem('currentStudent');
+    if (!storedStudent) {
+      toast.error("الرجاء تسجيل الدخول أولاً");
+      navigate('/login');
+      return;
+    }
+
+    const fetchStudentData = async () => {
+      try {
+        const parsedStudent = JSON.parse(storedStudent);
+        // جلب البيانات من الـ API دايمًا
+        const studentData = await getStudent(parsedStudent.nationalId || parsedStudent.examSeatNumber);
+        const updatedStudent: StudentData = {
+          nationalId: studentData.national_id,
+          arabicName: studentData.arabic_name,
+          examSeatNumber: studentData.seat_number,
+          studentCode: studentData.code,
+          englishFirstName: studentData.english_name?.split(' ')[0] || '',
+          englishSecondName: studentData.english_name?.split(' ')[1] || '',
+          englishThirdName: studentData.english_name?.split(' ')[2] || '',
+          profilePicture: studentData.photo || null,
+        };
+
+        // تحديث localStorage
+        localStorage.setItem('currentStudent', JSON.stringify(updatedStudent));
+        setStudent(updatedStudent);
+
+        // تعبئة الحقول بناءً على بيانات الـ API
+        setEnglishFirstName(updatedStudent.englishFirstName || '');
+        setEnglishSecondName(updatedStudent.englishSecondName || '');
+        setEnglishThirdName(updatedStudent.englishThirdName || '');
+
+        // تحديد حالة النموذج بناءً على وجود بيانات في قاعدة البيانات
+        setFormSubmitted(!!studentData.english_name || !!studentData.photo);
+
+        setLoading(false);
+      } catch (error: any) {
+        console.error("Error fetching student data:", error.message);
+        toast.error(error.message || 'فشل تحميل بيانات الطالب. حاول مرة أخرى.');
+        localStorage.removeItem('currentStudent');
+        navigate('/login');
+      }
+    };
+
+    fetchStudentData();
+  }, [navigate]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('currentStudent');
+    toast.success("تم تسجيل الخروج بنجاح");
+    navigate('/login');
+  };
+
+  const handleProfilePictureChange = (file: File | null) => {
+    if (file && !formSubmitted) {
+      setProfilePicture(file);
+      setProfilePictureError('');
+    } else {
+      setProfilePicture(null);
+      setProfilePictureError(file ? 'لا يمكن تغيير الصورة بعد الحفظ.' : '');
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!profilePicture) {
+      setProfilePictureError('الرجاء اختيار صورة شخصية قبل الحفظ.');
+      return;
+    }
+
+    if (!(profilePicture instanceof File)) {
+      setProfilePictureError('الصورة المختارة غير صالحة. اختر صورة أخرى.');
+      return;
+    }
+
+    const formattedFirstName = toTitleCase(englishFirstName.trim());
+    const formattedSecondName = toTitleCase(englishSecondName.trim());
+    const formattedThirdName = toTitleCase(englishThirdName.trim());
+    const fullEnglishName = `${formattedFirstName} ${formattedSecondName} ${formattedThirdName}`.trim();
+
+    const isFirstNameValid = validateName(formattedFirstName, 'first', (fieldName, message) => {
+      if (fieldName === 'first') setFirstNameError(message);
+    });
+    const isSecondNameValid = validateName(formattedSecondName, 'second', (fieldName, message) => {
+      if (fieldName === 'second') setSecondNameError(message);
+    });
+    const isThirdNameValid = validateName(formattedThirdName, 'third', (fieldName, message) => {
+      if (fieldName === 'third') setThirdNameError(message);
+    });
+
+    if (isFirstNameValid && isSecondNameValid && isThirdNameValid && student) {
+      try {
+        const formData = new FormData();
+        formData.append('english_name', fullEnglishName);
+        formData.append('photo', profilePicture, profilePicture.name);
+
+        const identifier = student.examSeatNumber;
+        console.log('Sending FormData:', {
+          english_name: fullEnglishName,
+          photo: profilePicture.name,
+          size: profilePicture.size,
+          type: profilePicture.type,
+        });
+
+        const response = await updateStudent(identifier, formData);
+
+        // تحديث localStorage
+        const updatedStudent = {
+          ...student,
+          englishFirstName: formattedFirstName,
+          englishSecondName: formattedSecondName,
+          englishThirdName: formattedThirdName,
+          profilePicture: response.photo,
+        };
+        localStorage.setItem('currentStudent', JSON.stringify(updatedStudent));
+        setStudent(updatedStudent);
+        setFormSubmitted(true);
+
+        toast.success(`تم حفظ البيانات والصورة بنجاح باسم ${student.examSeatNumber}.jpg`);
+      } catch (error: any) {
+        console.error('Submission error:', error.response?.data || error.message);
+        const errorMessage =
+          error.response?.data?.photo?.[0] ||
+          error.response?.data?.english_name?.[0] ||
+          error.response?.data?.error ||
+          'فشل حفظ البيانات. حاول مرة أخرى.';
+        setProfilePictureError(errorMessage);
+        toast.error(errorMessage);
+      }
+    }
+  };
+
+  if (loading) {
+    return <div className="container mx-auto py-12 text-center">جارٍ التحميل...</div>;
+  }
+
+  if (!student) {
+    return <div className="container mx-auto py-12 text-center">خطأ في تحميل بيانات الطالب</div>;
+  }
+
+  return (
+    <div className="container max-w-4xl mx-auto py-8 px-4" dir="rtl">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">الملف الشخصي</h1>
+        <Button variant="outline" onClick={handleLogout}>تسجيل الخروج</Button>
+      </div>
+
+      <div className="mb-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">بيانات الطالب</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h3 className="font-semibold text-gray-500 mb-1">الاسم بالعربي</h3>
+                <p className="text-lg">{student.arabicName || 'غير متوفر'}</p>
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-500 mb-1">رقم الجلوس</h3>
+                <p className="text-lg">{student.examSeatNumber || 'غير متوفر'}</p>
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-500 mb-1">كود الطالب</h3>
+                <p className="text-lg">{student.studentCode || 'غير متوفر'}</p>
+              </div>
+              <div className="md:col-span-2">
+                <h3 className="font-semibold text-gray-500 mb-1">الرقم القومي</h3>
+                <p className="text-lg">{student.nationalId || 'غير متوفر'}</p>
+              </div>
+              <FormSubmissionStatus formSubmitted={formSubmitted} />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">الصورة الشخصية</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center relative">
+              <ProfilePictureUpload
+                setProfilePicture={handleProfilePictureChange}
+                error={profilePictureError}
+                disabled={formSubmitted}
+                studentId={student.nationalId}
+                existingPhotoUrl={student.profilePicture}
+              />
+              {formSubmitted && (
+                <p className="mt-4 text-center">
+                  تم حفظ الصورة بنجاح<br />
+                  اسم الملف: {student.studentCode}.jpg
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-xl">الاسم بالإنجليزي</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <NameInput
+              id="english-first-name"
+              label="الاسم الأول بالإنجليزي"
+              value={englishFirstName}
+              onChange={(e) => setEnglishFirstName(e.target.value)}
+              error={firstNameError}
+              disabled={formSubmitted}
+            />
+            <NameInput
+              id="english-second-name"
+              label="الاسم الثاني بالإنجليزي"
+              value={englishSecondName}
+              onChange={(e) => setEnglishSecondName(e.target.value)}
+              error={secondNameError}
+              disabled={formSubmitted}
+            />
+            <NameInput
+              id="english-third-name"
+              label="الاسم الثالث بالإنجليزي"
+              value={englishThirdName}
+              onChange={(e) => setEnglishThirdName(e.target.value)}
+              error={thirdNameError}
+              disabled={formSubmitted}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      {!formSubmitted && (
+        <div className="mt-6 flex justify-center">
+          <Button onClick={handleSubmit} size="lg">
+            حفظ البيانات
+          </Button>
+        </div>
+      )}
+
+      <div className="mt-6 text-center">
+        <Link to="/">
+          <Button variant="outline">العودة للصفحة الرئيسية</Button>
+        </Link>
+      </div>
+    </div>
+  );
+};
+
+export default StudentProfile;
