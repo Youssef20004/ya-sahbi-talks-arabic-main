@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -8,11 +7,11 @@ interface ProfilePictureUploadProps {
   error: string;
   disabled?: boolean;
   studentId?: string;
-  existingPhotoUrl?: string | null; // رابط الصورة من الـ API
+  existingPhotoUrl?: string | null;
 }
 
-const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({ 
-  setProfilePicture, 
+const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
+  setProfilePicture,
   error,
   disabled = false,
   studentId,
@@ -20,6 +19,9 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
 }) => {
   const [previewUrl, setPreviewUrl] = useState<string>(existingPhotoUrl || '');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+  const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
 
   const handleProfileImageClick = () => {
     if (!disabled && fileInputRef.current) {
@@ -29,25 +31,27 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    
+
     if (file) {
-      // التحقق من نوع الملف
-      if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
+      // Validate file type
+      if (!ALLOWED_FILE_TYPES.includes(file.type)) {
         event.target.value = '';
         setProfilePicture(null);
         setPreviewUrl(existingPhotoUrl || '');
+        setProfilePicture(null); // Trigger error in parent
         return;
       }
-      
-      // التحقق من حجم الملف (أقل من 2MB)
-      if (file.size > 2 * 1024 * 1024) {
+
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
         event.target.value = '';
         setProfilePicture(null);
         setPreviewUrl(existingPhotoUrl || '');
+        setProfilePicture(null); // Trigger error in parent
         return;
       }
-      
-      // إنشاء معاينة للصورة
+
+      // Create preview for the image
       const reader = new FileReader();
       reader.onloadend = () => {
         setPreviewUrl(reader.result as string);
@@ -62,7 +66,7 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
 
   return (
     <div className="flex flex-col items-center">
-      <div 
+      <div
         className={`relative cursor-pointer ${disabled ? 'opacity-80 cursor-not-allowed' : 'hover:opacity-90'}`}
         onClick={handleProfileImageClick}
       >
@@ -72,10 +76,20 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
             {previewUrl ? 'صورة' : 'اختر صورة'}
           </AvatarFallback>
         </Avatar>
-        
+
         {!disabled && (
           <div className="absolute bottom-0 right-0 bg-primary text-white p-1 rounded-full w-8 h-8 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
               <circle cx="12" cy="13" r="4"></circle>
             </svg>
@@ -99,7 +113,7 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
           </svg>
         )}
       </div>
-      
+
       <input
         ref={fileInputRef}
         id="id_profile_picture"
@@ -109,21 +123,21 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
         onChange={handleFileChange}
         disabled={disabled}
       />
-      
+
       {disabled && previewUrl && (
         <div className="mt-2 text-center text-sm text-gray-600">
           الصورة مقفلة بعد الحفظ
         </div>
       )}
-      
+
       {error && (
         <Alert variant="destructive" className="mt-2 max-w-xs">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      
+
       <div className="mt-2 text-sm text-gray-500 text-center">
-        اختر صورة شخصية (JPG أو PNG)<br/>
+        اختر صورة شخصية (JPG أو PNG)<br />
         الحجم الأقصى: 2 ميغابايت
       </div>
     </div>
