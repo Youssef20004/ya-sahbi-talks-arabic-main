@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface ProfilePictureUploadProps {
   setProfilePicture: (file: File | null) => void;
+  setError: (error: string) => void;
   error: string;
   disabled?: boolean;
   studentId?: string;
@@ -12,6 +13,7 @@ interface ProfilePictureUploadProps {
 
 const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
   setProfilePicture,
+  setError,
   error,
   disabled = false,
   studentId,
@@ -32,36 +34,41 @@ const ProfilePictureUpload: React.FC<ProfilePictureUploadProps> = ({
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
 
-    if (file) {
-      // Validate file type
-      if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-        event.target.value = '';
-        setProfilePicture(null);
-        setPreviewUrl(existingPhotoUrl || '');
-        setProfilePicture(null); // Trigger error in parent
-        return;
-      }
-
-      // Validate file size
-      if (file.size > MAX_FILE_SIZE) {
-        event.target.value = '';
-        setProfilePicture(null);
-        setPreviewUrl(existingPhotoUrl || '');
-        setProfilePicture(null); // Trigger error in parent
-        return;
-      }
-
-      // Create preview for the image
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-      setProfilePicture(file);
-    } else {
+    // Reset input and states
+    if (!file) {
+      event.target.value = '';
       setProfilePicture(null);
       setPreviewUrl(existingPhotoUrl || '');
+      setError('');
+      return;
     }
+
+    // Validate file type
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      event.target.value = '';
+      setProfilePicture(null);
+      setPreviewUrl(existingPhotoUrl || '');
+      setError('يجب أن تكون الصورة بصيغة JPG أو PNG.');
+      return;
+    }
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      event.target.value = '';
+      setProfilePicture(null);
+      setPreviewUrl(existingPhotoUrl || '');
+      setError('حجم الصورة يجب ألا يتجاوز 2 ميغابايت.');
+      return;
+    }
+
+    // Create preview for the image
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreviewUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+    setProfilePicture(file);
+    setError(''); // Clear any previous errors
   };
 
   return (
