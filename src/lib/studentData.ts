@@ -1,7 +1,7 @@
 
 import axios from 'axios';
 
-const API_URL = 'https://egyption549.pythonanywhere.com/api/'; // أو 'https://your-api-server.com/api/'
+const API_URL = 'https://youssefabdelrhim41.pythonanywhere.com/api/'; // أو 'https://your-api-server.com/api/'
 
 export interface StudentData {
   code: string;
