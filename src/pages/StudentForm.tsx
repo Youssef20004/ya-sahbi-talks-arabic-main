@@ -28,17 +28,33 @@ const StudentProfile: React.FC = () => {
       return;
     }
 
-    try {
-      const parsedStudent = JSON.parse(storedStudent);
-      setStudent(parsedStudent);
-      setEnglishName(parsedStudent.english_name || '');
-      setFormSubmitted(!!parsedStudent.english_name || !!parsedStudent.photo);
-      setLoading(false);
-    } catch (error) {
-      console.error('Error parsing student data:', error);
-      localStorage.removeItem('currentStudent');
-      navigate('/login');
-    }
+    const fetchStudentData = async () => {
+      try {
+        const parsedStudent = JSON.parse(storedStudent);
+        const studentData = await getStudent(parsedStudent.national_id || parsedStudent.seat_number);
+        const updatedStudent: StudentData = {
+          national_id: studentData.national_id,
+          arabic_name: studentData.arabic_name,
+          seat_number: studentData.seat_number,
+          code: studentData.code,
+          english_name: studentData.english_name || '',
+          photo: studentData.photo || null,
+        };
+
+        localStorage.setItem('currentStudent', JSON.stringify(updatedStudent));
+        setStudent(updatedStudent);
+        setEnglishName(updatedStudent.english_name || '');
+        setFormSubmitted(!!updatedStudent.english_name || !!updatedStudent.photo);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching student data:', error);
+        toast.error('فشل تحميل بيانات الطالب. حاول مرة أخرى.');
+        localStorage.removeItem('currentStudent');
+        navigate('/login');
+      }
+    };
+
+    fetchStudentData();
   }, [navigate]);
 
   const handleLogout = () => {
@@ -48,16 +64,59 @@ const StudentProfile: React.FC = () => {
   };
 
   const handleProfilePictureChange = (file: File | null) => {
-    if (file && !formSubmitted) {
-      setProfilePicture(file);
-    } else {
+    if (formSubmitted) {
+      setProfilePictureError('لا يمكن تغيير الصورة بعد الحفظ.');
       setProfilePicture(null);
+      return;
     }
+
+    if (!file) {
+      setProfilePicture(null);
+      setProfilePictureError('');
+      return;
+    }
+
+    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+    const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
+
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      setProfilePictureError('يجب أن تكون الصورة بصيغة JPG أو PNG.');
+      setProfilePicture(null);
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setProfilePictureError('حجم الصورة يجب ألا يتجاوز 2 ميغابايت.');
+      setProfilePicture(null);
+      return;
+    }
+
+    setProfilePicture(file);
+    setProfilePictureError('');
   };
 
   const handleSubmit = async () => {
     if (!profilePicture) {
       setProfilePictureError('الرجاء اختيار صورة شخصية قبل الحفظ.');
+      return;
+    }
+
+    if (!(profilePicture instanceof File)) {
+      setProfilePictureError('الصورة المختارة غير صالحة. اختر صورة أخرى.');
+      return;
+    }
+
+    // Additional validation
+    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+    const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!ALLOWED_FILE_TYPES.includes(profilePicture.type)) {
+      setProfilePictureError('يجب أن تكون الصورة بصيغة JPG أو PNG.');
+      setProfilePicture(null);
+      return;
+    }
+    if (profilePicture.size > MAX_FILE_SIZE) {
+      setProfilePictureError('حجم الصورة يجب ألا يتجاوز 2 ميغابايت.');
+      setProfilePicture(null);
       return;
     }
 
@@ -70,7 +129,7 @@ const StudentProfile: React.FC = () => {
       try {
         const formData = new FormData();
         formData.append('english_name', formattedName);
-        formData.append('photo', profilePicture);
+        formData.append('photo', profilePicture, profilePicture.name);
 
         const updatedStudent = await updateStudent(student.national_id, formData);
         localStorage.setItem('currentStudent', JSON.stringify(updatedStudent));
@@ -78,7 +137,10 @@ const StudentProfile: React.FC = () => {
         setFormSubmitted(true);
         toast.success('تم حفظ البيانات والصورة بنجاح!');
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'فشل حفظ البيانات.');
+        console.error('Submission error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'فشل حفظ البيانات. حاول مرة أخرى.';
+        setProfilePictureError(errorMessage);
+        toast.error(errorMessage);
       }
     }
   };
@@ -107,19 +169,19 @@ const StudentProfile: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <h3 className="font-semibold text-gray-500 mb-1">الاسم بالعربي</h3>
-                <p className="text-lg">{student.arabic_name}</p>
+                <p className="text-lg">{student.arabic_name || 'غير متوفر'}</p>
               </div>
               <div>
                 <h3 className="font-semibold text-gray-500 mb-1">رقم الجلوس</h3>
-                <p className="text-lg">{student.seat_number}</p>
+                <p className="text-lg">{student.seat_number || 'غير متوفر'}</p>
               </div>
               <div>
                 <h3 className="font-semibold text-gray-500 mb-1">كود الطالب</h3>
-                <p className="text-lg">{student.code}</p>
+                <p className="text-lg">{student.code || 'غير متوفر'}</p>
               </div>
               <div className="md:col-span-2">
                 <h3 className="font-semibold text-gray-500 mb-1">الرقم القومي</h3>
-                <p className="text-lg">{student.national_id}</p>
+                <p className="text-lg">{student.national_id || 'غير متوفر'}</p>
               </div>
               <FormSubmissionStatus formSubmitted={formSubmitted} />
             </div>
@@ -136,9 +198,11 @@ const StudentProfile: React.FC = () => {
             <div className="text-center relative">
               <ProfilePictureUpload
                 setProfilePicture={handleProfilePictureChange}
+                setError={setProfilePictureError}
                 error={profilePictureError}
                 disabled={formSubmitted}
                 studentId={student.national_id}
+                existingPhotoUrl={student.photo}
               />
               {formSubmitted && (
                 <p className="mt-4 text-center">
