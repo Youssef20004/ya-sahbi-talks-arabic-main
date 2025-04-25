@@ -94,29 +94,10 @@ const StudentProfile = () => {
       return;
     }
 
-    if (!file) {
-      setProfilePicture(null);
-      setProfilePictureError('');
-      return;
-    }
-
-    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
-    const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
-
-    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-      setProfilePictureError('يجب أن تكون الصورة بصيغة JPG أو PNG.');
-      setProfilePicture(null);
-      return;
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      setProfilePictureError('حجم الصورة يجب ألا يتجاوز 2 ميغابايت.');
-      setProfilePicture(null);
-      return;
-    }
-
     setProfilePicture(file);
-    setProfilePictureError('');
+    if (!file) {
+      setProfilePictureError('');
+    }
   };
 
   const handleSubmit = async () => {
@@ -127,6 +108,20 @@ const StudentProfile = () => {
 
     if (!(profilePicture instanceof File)) {
       setProfilePictureError('الصورة المختارة غير صالحة. اختر صورة أخرى.');
+      return;
+    }
+
+    // Additional validation to ensure file is valid
+    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+    const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!ALLOWED_FILE_TYPES.includes(profilePicture.type)) {
+      setProfilePictureError('يجب أن تكون الصورة بصيغة JPG أو PNG.');
+      setProfilePicture(null);
+      return;
+    }
+    if (profilePicture.size > MAX_FILE_SIZE) {
+      setProfilePictureError('حجم الصورة يجب ألا يتجاوز 2 ميغابايت.');
+      setProfilePicture(null);
       return;
     }
 
@@ -239,6 +234,7 @@ const StudentProfile = () => {
             <div className="text-center relative">
               <ProfilePictureUpload
                 setProfilePicture={handleProfilePictureChange}
+                setError={setProfilePictureError}
                 error={profilePictureError}
                 disabled={formSubmitted}
                 studentId={student.nationalId}
