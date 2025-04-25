@@ -48,7 +48,6 @@ const StudentProfile = () => {
     const fetchStudentData = async () => {
       try {
         const parsedStudent = JSON.parse(storedStudent);
-        // جلب البيانات من الـ API دايمًا
         const studentData = await getStudent(parsedStudent.nationalId || parsedStudent.examSeatNumber);
         const updatedStudent: StudentData = {
           nationalId: studentData.national_id,
@@ -61,16 +60,13 @@ const StudentProfile = () => {
           profilePicture: studentData.photo || null,
         };
 
-        // تحديث localStorage
         localStorage.setItem('currentStudent', JSON.stringify(updatedStudent));
         setStudent(updatedStudent);
 
-        // تعبئة الحقول بناءً على بيانات الـ API
         setEnglishFirstName(updatedStudent.englishFirstName || '');
         setEnglishSecondName(updatedStudent.englishSecondName || '');
         setEnglishThirdName(updatedStudent.englishThirdName || '');
 
-        // تحديد حالة النموذج بناءً على وجود بيانات في قاعدة البيانات
         setFormSubmitted(!!studentData.english_name || !!studentData.photo);
 
         setLoading(false);
@@ -92,13 +88,35 @@ const StudentProfile = () => {
   };
 
   const handleProfilePictureChange = (file: File | null) => {
-    if (file && !formSubmitted) {
-      setProfilePicture(file);
-      setProfilePictureError('');
-    } else {
+    if (formSubmitted) {
+      setProfilePictureError('لا يمكن تغيير الصورة بعد الحفظ.');
       setProfilePicture(null);
-      setProfilePictureError(file ? 'لا يمكن تغيير الصورة بعد الحفظ.' : '');
+      return;
     }
+
+    if (!file) {
+      setProfilePicture(null);
+      setProfilePictureError('');
+      return;
+    }
+
+    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
+    const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
+
+    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+      setProfilePictureError('يجب أن تكون الصورة بصيغة JPG أو PNG.');
+      setProfilePicture(null);
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setProfilePictureError('حجم الصورة يجب ألا يتجاوز 2 ميغابايت.');
+      setProfilePicture(null);
+      return;
+    }
+
+    setProfilePicture(file);
+    setProfilePictureError('');
   };
 
   const handleSubmit = async () => {
@@ -143,7 +161,6 @@ const StudentProfile = () => {
 
         const response = await updateStudent(identifier, formData);
 
-        // تحديث localStorage
         const updatedStudent = {
           ...student,
           englishFirstName: formattedFirstName,
