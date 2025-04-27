@@ -174,12 +174,8 @@ const StudentProfile = () => {
 
         toast.success(`تم حفظ البيانات والصورة بنجاح باسم ${student.studentCode}.jpg`);
       } catch (error: any) {
-        console.error('Submission error:', error.response?.data || error.message);
-        const errorMessage =
-          error.response?.data?.photo?.[0] ||
-          error.response?.data?.english_name?.[0] ||
-          error.response?.data?.error ||
-          'فشل حفظ البيانات. حاول مرة أخرى.';
+        console.error('Submission error:', error.message);
+        const errorMessage = error.message || 'فشل حفظ البيانات. حاول مرة ateliers أخرى.';
         setProfilePictureError(errorMessage);
         toast.error(errorMessage);
       }
