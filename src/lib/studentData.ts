@@ -1,6 +1,6 @@
 import axios, { AxiosError } from 'axios';
 
-// إنشاء مثيل Axios مع إعدادات افتراضية (بدون .env)
+// إنشاء مثيل Axios مع إعدادات افتراضية
 const api = axios.create({
   baseURL: 'https://youssefabdelrhim41.pythonanywhere.com/api/',
   headers: {
@@ -16,6 +16,7 @@ export interface StudentData {
   national_id: string;
   english_name: string | null;
   photo: string | null;
+  can_edit_again: boolean;
 }
 
 // دالة مساعدة لاستخراج رسالة الخطأ
