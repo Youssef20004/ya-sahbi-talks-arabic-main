@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/components/ui/sonner";
 import ProfilePictureUpload from '@/components/ProfilePictureUpload';
 import NameInput from '@/components/NameInput';
-import FormSubmissionStatus from '@/components/FormSubmissionStatus';
 import { useErrorTimeout } from '@/hooks/useErrorTimeout';
 import { validateName, toTitleCase } from '@/utils/nameUtils';
 import { getStudent, updateStudent } from '@/lib/studentData';
@@ -19,6 +18,7 @@ interface StudentData {
   englishSecondName?: string;
   englishThirdName?: string;
   profilePicture?: string | null;
+  canEditAgain: boolean;
 }
 
 const StudentProfile = () => {
@@ -26,7 +26,6 @@ const StudentProfile = () => {
   const [loading, setLoading] = useState(true);
   const [profilePicture, setProfilePicture] = useState<File | null>(null);
   const [profilePictureError, setProfilePictureError] = useErrorTimeout('', 5000);
-  const [formSubmitted, setFormSubmitted] = useState(false);
   const navigate = useNavigate();
 
   const [englishFirstName, setEnglishFirstName] = useState('');
@@ -58,6 +57,7 @@ const StudentProfile = () => {
           englishSecondName: studentData.english_name?.split(' ')[1] || '',
           englishThirdName: studentData.english_name?.split(' ')[2] || '',
           profilePicture: studentData.photo || null,
+          canEditAgain: studentData.can_edit_again || false,
         };
 
         localStorage.setItem('currentStudent', JSON.stringify(updatedStudent));
@@ -66,8 +66,6 @@ const StudentProfile = () => {
         setEnglishFirstName(updatedStudent.englishFirstName || '');
         setEnglishSecondName(updatedStudent.englishSecondName || '');
         setEnglishThirdName(updatedStudent.englishThirdName || '');
-
-        setFormSubmitted(!!studentData.english_name || !!studentData.photo);
 
         setLoading(false);
       } catch (error: any) {
@@ -88,8 +86,8 @@ const StudentProfile = () => {
   };
 
   const handleProfilePictureChange = (file: File | null) => {
-    if (formSubmitted) {
-      setProfilePictureError('لا يمكن تغيير الصورة بعد الحفظ.');
+    if (!student?.canEditAgain) {
+      setProfilePictureError('لا يمكن تغيير الصورة بدون إذن الأدمن.');
       setProfilePicture(null);
       return;
     }
@@ -101,12 +99,17 @@ const StudentProfile = () => {
   };
 
   const handleSubmit = async () => {
-    if (!profilePicture) {
+    if (!student?.canEditAgain) {
+      toast.error('غير مسموح بتعديل البيانات بدون إذن الأدمن.');
+      return;
+    }
+
+    if (!profilePicture && !student.profilePicture) {
       setProfilePictureError('الرجاء اختيار صورة شخصية قبل الحفظ.');
       return;
     }
 
-    if (!(profilePicture instanceof File)) {
+    if (profilePicture && !(profilePicture instanceof File)) {
       setProfilePictureError('الصورة المختارة غير صالحة. اختر صورة أخرى.');
       return;
     }
@@ -114,12 +117,12 @@ const StudentProfile = () => {
     // Additional validation to ensure file is valid
     const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB in bytes
     const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
-    if (!ALLOWED_FILE_TYPES.includes(profilePicture.type)) {
+    if (profilePicture && !ALLOWED_FILE_TYPES.includes(profilePicture.type)) {
       setProfilePictureError('يجب أن تكون الصورة بصيغة JPG أو PNG.');
       setProfilePicture(null);
       return;
     }
-    if (profilePicture.size > MAX_FILE_SIZE) {
+    if (profilePicture && profilePicture.size > MAX_FILE_SIZE) {
       setProfilePictureError('حجم الصورة يجب ألا يتجاوز 2 ميغابايت.');
       setProfilePicture(null);
       return;
@@ -144,14 +147,16 @@ const StudentProfile = () => {
       try {
         const formData = new FormData();
         formData.append('english_name', fullEnglishName);
-        formData.append('photo', profilePicture, profilePicture.name);
+        if (profilePicture) {
+          formData.append('photo', profilePicture, profilePicture.name);
+        }
 
         const identifier = student.examSeatNumber;
         console.log('Sending FormData:', {
           english_name: fullEnglishName,
-          photo: profilePicture.name,
-          size: profilePicture.size,
-          type: profilePicture.type,
+          photo: profilePicture ? profilePicture.name : 'No new photo',
+          size: profilePicture ? profilePicture.size : 'N/A',
+          type: profilePicture ? profilePicture.type : 'N/A',
         });
 
         const response = await updateStudent(identifier, formData);
@@ -162,12 +167,12 @@ const StudentProfile = () => {
           englishSecondName: formattedSecondName,
           englishThirdName: formattedThirdName,
           profilePicture: response.photo,
+          canEditAgain: response.can_edit_again || false,
         };
         localStorage.setItem('currentStudent', JSON.stringify(updatedStudent));
         setStudent(updatedStudent);
-        setFormSubmitted(true);
 
-        toast.success(`تم حفظ البيانات والصورة بنجاح باسم ${student.examSeatNumber}.jpg`);
+        toast.success(`تم حفظ البيانات والصورة بنجاح باسم ${student.studentCode}.jpg`);
       } catch (error: any) {
         console.error('Submission error:', error.response?.data || error.message);
         const errorMessage =
@@ -219,7 +224,6 @@ const StudentProfile = () => {
                 <h3 className="font-semibold text-gray-500 mb-1">الرقم القومي</h3>
                 <p className="text-lg">{student.nationalId || 'غير متوفر'}</p>
               </div>
-              <FormSubmissionStatus formSubmitted={formSubmitted} />
             </div>
           </CardContent>
         </Card>
@@ -236,13 +240,12 @@ const StudentProfile = () => {
                 setProfilePicture={handleProfilePictureChange}
                 setError={setProfilePictureError}
                 error={profilePictureError}
-                disabled={formSubmitted}
+                disabled={!student.canEditAgain}
                 studentId={student.nationalId}
                 existingPhotoUrl={student.profilePicture}
               />
-              {formSubmitted && (
+              {student.profilePicture && (
                 <p className="mt-4 text-center">
-                  تم حفظ الصورة بنجاح<br />
                   اسم الملف: {student.studentCode}.jpg
                 </p>
               )}
@@ -261,7 +264,7 @@ const StudentProfile = () => {
               value={englishFirstName}
               onChange={(e) => setEnglishFirstName(e.target.value)}
               error={firstNameError}
-              disabled={formSubmitted}
+              disabled={!student.canEditAgain}
             />
             <NameInput
               id="english-second-name"
@@ -269,7 +272,7 @@ const StudentProfile = () => {
               value={englishSecondName}
               onChange={(e) => setEnglishSecondName(e.target.value)}
               error={secondNameError}
-              disabled={formSubmitted}
+              disabled={!student.canEditAgain}
             />
             <NameInput
               id="english-third-name"
@@ -277,13 +280,13 @@ const StudentProfile = () => {
               value={englishThirdName}
               onChange={(e) => setEnglishThirdName(e.target.value)}
               error={thirdNameError}
-              disabled={formSubmitted}
+              disabled={!student.canEditAgain}
             />
           </CardContent>
         </Card>
       </div>
 
-      {!formSubmitted && (
+      {student.canEditAgain && (
         <div className="mt-6 flex justify-center">
           <Button onClick={handleSubmit} size="lg">
             حفظ البيانات
